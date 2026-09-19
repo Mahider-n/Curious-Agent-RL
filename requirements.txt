@@ -6,6 +6,10 @@ pyyaml>=6.0
 matplotlib>=3.7.0
 tensorboard>=2.14.0
 
+# Craftax-Classic-Symbolic
+jax>=0.4.0
+craftax>=1.6.1
+
 # Development dependencies
 pytest>=7.0.0
 pytest-cov>=4.0.0

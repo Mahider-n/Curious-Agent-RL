@@ -172,6 +172,31 @@ def test_shared_runner_writes_training_and_evaluation_artifacts(
         assert summary["final_confidence_loss"] is not None
 
 
+def test_runner_records_an_incomplete_final_episode(tmp_path: Path) -> None:
+    """A budget-truncated episode is saved without terminal achievements."""
+    config = small_config()
+    config["training"]["total_steps"] = 11
+
+    summary = train(
+        "vanilla-dqn",
+        config,
+        output_root=tmp_path,
+        env_factory=FakeCraftaxEnvironment,
+    )
+
+    episode_path = tmp_path / "vanilla_dqn" / "seed_7" / "episodes.csv"
+    with episode_path.open(newline="") as input_file:
+        rows = list(csv.DictReader(input_file))
+
+    assert summary["completed_episodes"] == 3
+    assert summary["recorded_episodes"] == 4
+    assert rows[-1]["episode_complete"] == "False"
+    assert rows[-1]["episode_length"] == "2"
+    assert rows[-1]["score"] == ""
+    assert rows[-1]["unique_achievements"] == ""
+    assert rows[-1]["achievement_collect_wood"] == ""
+
+
 @pytest.mark.skipif(
     importlib.util.find_spec("jax") is None
     or importlib.util.find_spec("craftax") is None,

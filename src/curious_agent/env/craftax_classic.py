@@ -12,7 +12,6 @@ from typing import Any
 
 import numpy as np
 
-
 CRAFTAX_CLASSIC_SYMBOLIC = "Craftax-Classic-Symbolic-v1"
 EXPECTED_STATE_DIM = 1345
 EXPECTED_NUM_ACTIONS = 17

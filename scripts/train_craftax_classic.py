@@ -188,6 +188,7 @@ def _write_episode_csv(path: Path, records: list[dict[str, Any]]) -> None:
     base_fields = [
         "episode",
         "end_step",
+        "episode_complete",
         "external_return",
         "curiosity_return",
         "controller_return",
@@ -199,7 +200,7 @@ def _write_episode_csv(path: Path, records: list[dict[str, Any]]) -> None:
         {
             name
             for record in records
-            for name in record.get("achievements", {}).keys()
+            for name in record.get("achievements", {})
         }
     )
     achievement_fields = [f"achievement_{name}" for name in achievement_names]
@@ -210,12 +211,14 @@ def _write_episode_csv(path: Path, records: list[dict[str, Any]]) -> None:
         for record in records:
             row = {field: record[field] for field in base_fields}
             flags = record.get("achievements", {})
-            row.update(
-                {
-                    f"achievement_{name}": int(flags.get(name, 0))
-                    for name in achievement_names
-                }
-            )
+            row.update({
+                f"achievement_{name}": (
+                    int(flags.get(name, 0))
+                    if record["episode_complete"]
+                    else ""
+                )
+                for name in achievement_names
+            })
             writer.writerow(row)
 
 
@@ -264,7 +267,9 @@ def evaluate_agent(
             episode_return = 0.0
             final_info: dict[str, Any] = {}
 
-            for episode_step in range(1, max_steps + 1):
+            episode_length = 0
+            for _ in range(max_steps):
+                episode_length += 1
                 action = _greedy_action(agent, agent_name, state)
                 state, reward, done, final_info = environment.step(action)
                 episode_return += reward
@@ -272,7 +277,7 @@ def evaluate_agent(
                     break
 
             returns.append(episode_return)
-            lengths.append(episode_step)
+            lengths.append(episode_length)
             achievement_records.append(_achievement_flags(final_info))
     finally:
         environment.close()
@@ -429,6 +434,7 @@ def train(
                     {
                         "episode": len(records) + 1,
                         "end_step": step,
+                        "episode_complete": True,
                         "external_return": episode_external,
                         "curiosity_return": episode_curiosity,
                         "controller_return": episode_controller,
@@ -476,6 +482,22 @@ def train(
                     "n/a" if latest_q_loss is None else f"{latest_q_loss:.6f}",
                     step / elapsed,
                 )
+
+        if episode_length > 0:
+            records.append(
+                {
+                    "episode": len(records) + 1,
+                    "end_step": total_steps,
+                    "episode_complete": False,
+                    "external_return": episode_external,
+                    "curiosity_return": episode_curiosity,
+                    "controller_return": episode_controller,
+                    "episode_length": episode_length,
+                    "score": None,
+                    "unique_achievements": None,
+                    "achievements": {},
+                }
+            )
     finally:
         environment.close()
 
@@ -495,7 +517,10 @@ def train(
         ),
         "seed": seed,
         "total_steps": total_steps,
-        "completed_episodes": len(records),
+        "completed_episodes": sum(
+            int(record["episode_complete"]) for record in records
+        ),
+        "recorded_episodes": len(records),
         "q_updates": update_count,
         "training_seconds": training_elapsed,
         "steps_per_second": total_steps / training_elapsed,
